@@ -13,9 +13,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Optional, Tuple
 
-import numpy as np
+try:
+    import numpy as np
+except ModuleNotFoundError as exc:  # pragma: no cover
+    raise SystemExit(
+        "缺少依赖 numpy。请先安装后再运行：\n"
+        "  python -m pip install numpy\n"
+        "若你在离线环境，请使用本地镜像或预装科学计算环境。"
+    ) from exc
+
+import argparse
 
 
 @dataclass
@@ -284,6 +293,51 @@ def simulate_polycrystal_datacube(
     return cube, ref
 
 
+
+def run_on_npy_file(
+    input_path: str,
+    reference_path: str,
+    output_prefix: str = "strain_result",
+    n_peaks: int = 12,
+    max_match_distance: float = 5.0,
+    n_grains: int = 3,
+) -> None:
+    """从 .npy 文件读取数据并输出结果为多个 .npy 文件。"""
+    datacube = np.load(input_path)
+    reference = np.load(reference_path)
+    result = analyze_4dstem_polycrystal_strain(
+        datacube=datacube,
+        reference_vectors=reference,
+        n_peaks=n_peaks,
+        max_match_distance=max_match_distance,
+        n_grains=n_grains,
+    )
+
+    np.save(f"{output_prefix}_exx.npy", result.exx)
+    np.save(f"{output_prefix}_eyy.npy", result.eyy)
+    np.save(f"{output_prefix}_exy.npy", result.exy)
+    np.save(f"{output_prefix}_rotation.npy", result.rotation)
+    np.save(f"{output_prefix}_confidence.npy", result.confidence)
+    np.save(f"{output_prefix}_grain_id.npy", result.grain_id)
+
+    valid = np.isfinite(result.exx)
+    print("处理完成。")
+    print("有效像素比例:", float(valid.mean()))
+    print("结果文件前缀:", output_prefix)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="4D-STEM 多晶应变检测")
+    parser.add_argument("--input", help="输入 4D-STEM 数据 .npy 文件，形状 (sy,sx,qy,qx)")
+    parser.add_argument("--reference", help="参考倒易矢量 .npy 文件，形状 (M,2)")
+    parser.add_argument("--output-prefix", default="strain_result", help="输出文件前缀")
+    parser.add_argument("--n-peaks", type=int, default=12, help="每个衍射图提取峰数量")
+    parser.add_argument("--max-match-distance", type=float, default=5.0, help="匹配最大距离")
+    parser.add_argument("--n-grains", type=int, default=3, help="分割晶粒数")
+    parser.add_argument("--demo", action="store_true", help="运行模拟数据演示")
+    return parser.parse_args()
+
+
 def _demo() -> None:
     cube, ref = simulate_polycrystal_datacube()
     result = analyze_4dstem_polycrystal_strain(
@@ -302,4 +356,17 @@ def _demo() -> None:
 
 
 if __name__ == "__main__":
-    _demo()
+    args = parse_args()
+    if args.demo or (args.input is None and args.reference is None):
+        _demo()
+    else:
+        if not args.input or not args.reference:
+            raise SystemExit("请同时提供 --input 和 --reference，或使用 --demo")
+        run_on_npy_file(
+            input_path=args.input,
+            reference_path=args.reference,
+            output_prefix=args.output_prefix,
+            n_peaks=args.n_peaks,
+            max_match_distance=args.max_match_distance,
+            n_grains=args.n_grains,
+        )

@@ -1,40 +1,47 @@
 # 4D-STEM 多晶应变检测示例
 
-这个仓库提供了一个可直接运行的 Python 示例脚本：`strain_polycrystal_4dstem.py`。
+可以直接使用，但需要先满足 **Python + numpy** 环境。
 
-## 功能
-
-- 从 4D-STEM 数据立方 `datacube(scan_y, scan_x, qy, qx)` 提取衍射峰；
-- 参考倒易矢量匹配；
-- 最小二乘估计局部形变梯度 `F`；
-- 计算小应变分量 `exx / eyy / exy` 与晶体旋转；
-- 基于旋转角进行简单多晶分区（1D k-means）。
-
-## 快速运行
+## 1) 安装依赖
 
 ```bash
-python strain_polycrystal_4dstem.py
+python -m pip install numpy
 ```
 
-脚本会自动生成一组模拟多晶 4D-STEM 数据并输出结果统计。
+## 2) 快速验证（内置模拟数据）
 
-## 在真实数据上使用
-
-```python
-from strain_polycrystal_4dstem import analyze_4dstem_polycrystal_strain
-
-result = analyze_4dstem_polycrystal_strain(
-    datacube=your_4dstem_cube,            # (scan_y, scan_x, qy, qx)
-    reference_vectors=your_reference_g,   # (M, 2), 参考倒易矢量 (dy, dx)
-    n_peaks=12,
-    max_match_distance=5.0,
-    n_grains=5,
-)
-
-# 应变图
-exx_map = result.exx
-rotation_map = result.rotation
-grain_map = result.grain_id
+```bash
+python strain_polycrystal_4dstem.py --demo
 ```
 
-> 说明：该示例是工程化起点，实际项目建议加入更稳健的峰拟合、几何标定与畸变校正流程。
+## 3) 直接处理你的真实数据（`.npy`）
+
+### 输入要求
+- `--input`: 4D-STEM 数据立方，形状 `(scan_y, scan_x, qy, qx)`
+- `--reference`: 参考倒易矢量，形状 `(M, 2)`，坐标顺序 `(dy, dx)`
+
+### 运行命令
+
+```bash
+python strain_polycrystal_4dstem.py \
+  --input your_cube.npy \
+  --reference your_reference.npy \
+  --output-prefix sample1 \
+  --n-peaks 12 \
+  --max-match-distance 5.0 \
+  --n-grains 5
+```
+
+### 输出文件
+- `sample1_exx.npy`
+- `sample1_eyy.npy`
+- `sample1_exy.npy`
+- `sample1_rotation.npy`
+- `sample1_confidence.npy`
+- `sample1_grain_id.npy`
+
+## 4) 说明
+
+脚本实现流程：峰提取 → 参考矢量匹配 → 形变梯度估计 → 应变/旋转计算 → 晶粒分区。
+
+> 该版本是可落地的基础流程。若你后续给我你的数据样例（维度、像素尺寸、相机长度、标定参数），我可以继续帮你改成更贴近实验流程的版本（如峰亚像素拟合、畸变校正、应变张量坐标变换、可视化输出等）。
